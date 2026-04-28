@@ -25,7 +25,6 @@ If your known "today" baseline changes, update `REFERENCE_CYCLE_DATE_JST` in `ma
    - `uv sync`
 2. Set your bot token:
    - `export DISCORD_TOKEN="your-token-here"`
-   - Optional (for instant slash-command updates in one server): `export TEST_GUILD_ID="your-server-id"`
 3. Start the bot:
    - `uv run python main.py`
 
@@ -33,5 +32,41 @@ If your known "today" baseline changes, update `REFERENCE_CYCLE_DATE_JST` in `ma
 
 This uses a slash command, so **Message Content Intent is not required**.
 
-- If `TEST_GUILD_ID` is set, the bot syncs commands to that guild immediately (best for testing).
-- If not set, it syncs globally, which can take a bit to appear in Discord.
+- Slash command updates can take a bit to appear globally.
+
+## Linux systemd service
+
+For server hosting, create `/etc/systemd/system/souls-forecast-bot.service`:
+
+```ini
+[Unit]
+Description=Souls Forecast Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=discordbot
+Group=discordbot
+WorkingDirectory=/opt/souls-forecast-bot
+Environment="DISCORD_TOKEN=PASTE_YOUR_DISCORD_TOKEN_HERE"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/env uv run python main.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now souls-forecast-bot
+sudo systemctl status souls-forecast-bot
+journalctl -u souls-forecast-bot -f
+```
