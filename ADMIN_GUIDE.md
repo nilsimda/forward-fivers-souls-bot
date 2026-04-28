@@ -11,7 +11,6 @@ This guide explains how a Discord server admin can host the bot on their own Lin
 
 Notes:
 - This bot uses slash commands, so **Message Content Intent is not required**.
-- The person hosting should use **their own** bot token.
 
 ## 2) Invite the bot to your Discord server
 
