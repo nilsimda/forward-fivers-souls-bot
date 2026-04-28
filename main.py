@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -85,6 +86,15 @@ REFERENCE_ACTIVE_BY_SOUL = {
     "Soul 4": "Orgaron (Kamu & Nono)",
 }
 
+SOUL_BUTTON_IDS = {
+    "Soul 1": "souls:soul1",
+    "Soul 2": "souls:soul2",
+    "Soul 3": "souls:soul3",
+    "Soul 4": "souls:soul4",
+}
+BUTTON_ID_TO_SOUL = {button_id: soul for soul, button_id in SOUL_BUTTON_IDS.items()}
+CYCLE_DATE_PATTERN = re.compile(r"\*\*JST cycle date:\*\* (\d{4}-\d{2}-\d{2})")
+
 
 def get_cycle_date_jst(now: datetime | None = None) -> date:
     now_jst = now.astimezone(JST) if now else datetime.now(JST)
@@ -161,51 +171,97 @@ def build_souls_embed(
     return embed
 
 
+def parse_embed_context(embed: discord.Embed) -> tuple[date, bool] | None:
+    description = embed.description or ""
+    match = CYCLE_DATE_PATTERN.search(description)
+    if not match:
+        return None
+
+    try:
+        cycle_date = date.fromisoformat(match.group(1))
+    except ValueError:
+        return None
+
+    using_default_date = "Next rollover:" in description
+    return cycle_date, using_default_date
+
+
 class SoulsView(discord.ui.View):
-    def __init__(self, cycle_date: date, using_default_date: bool) -> None:
-        super().__init__(timeout=600)
-        self.cycle_date = cycle_date
-        self.using_default_date = using_default_date
-        self.selected_soul = "Soul 1"
+    def __init__(self, selected_soul: str = "Soul 1") -> None:
+        super().__init__(timeout=None)
+        self.selected_soul = selected_soul
         self._update_button_styles()
 
     def _update_button_styles(self) -> None:
         for child in self.children:
             if isinstance(child, discord.ui.Button):
+                soul_name = BUTTON_ID_TO_SOUL.get(child.custom_id or "")
                 child.style = (
                     discord.ButtonStyle.success
-                    if child.label == self.selected_soul
+                    if soul_name == self.selected_soul
                     else discord.ButtonStyle.secondary
                 )
 
     async def _switch_soul(self, interaction: discord.Interaction, soul_name: str) -> None:
-        self.selected_soul = soul_name
-        self._update_button_styles()
-        embed = build_souls_embed(self.selected_soul, self.cycle_date, self.using_default_date)
-        await interaction.response.edit_message(embed=embed, view=self)
+        if interaction.message is None or not interaction.message.embeds:
+            await interaction.response.send_message(
+                "I couldn't read this message context. Please run `/souls` again.",
+                ephemeral=True,
+            )
+            return
 
-    @discord.ui.button(label="Soul 1", style=discord.ButtonStyle.success)
+        context = parse_embed_context(interaction.message.embeds[0])
+        if context is None:
+            await interaction.response.send_message(
+                "This message is too old or in an unsupported format. Please run `/souls` again.",
+                ephemeral=True,
+            )
+            return
+
+        cycle_date, using_default_date = context
+        embed = build_souls_embed(soul_name, cycle_date, using_default_date)
+        await interaction.response.edit_message(
+            embed=embed, view=SoulsView(selected_soul=soul_name)
+        )
+
+    @discord.ui.button(
+        label="Soul 1",
+        style=discord.ButtonStyle.success,
+        custom_id=SOUL_BUTTON_IDS["Soul 1"],
+    )
     async def soul_1_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         del button
         await self._switch_soul(interaction, "Soul 1")
 
-    @discord.ui.button(label="Soul 2", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="Soul 2",
+        style=discord.ButtonStyle.secondary,
+        custom_id=SOUL_BUTTON_IDS["Soul 2"],
+    )
     async def soul_2_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         del button
         await self._switch_soul(interaction, "Soul 2")
 
-    @discord.ui.button(label="Soul 3", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="Soul 3",
+        style=discord.ButtonStyle.secondary,
+        custom_id=SOUL_BUTTON_IDS["Soul 3"],
+    )
     async def soul_3_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         del button
         await self._switch_soul(interaction, "Soul 3")
 
-    @discord.ui.button(label="Soul 4", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="Soul 4",
+        style=discord.ButtonStyle.secondary,
+        custom_id=SOUL_BUTTON_IDS["Soul 4"],
+    )
     async def soul_4_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -215,6 +271,10 @@ class SoulsView(discord.ui.View):
 
 class SoulsBot(commands.Bot):
     async def setup_hook(self) -> None:
+        # Register persistent button handlers so old /souls messages
+        # still work after bot restarts.
+        self.add_view(SoulsView())
+
         test_guild_id = os.getenv("TEST_GUILD_ID")
         if test_guild_id:
             guild = discord.Object(id=int(test_guild_id))
@@ -255,7 +315,7 @@ async def souls_command(
                 return
     using_default_date = requested_cycle_date is None
     cycle_date = requested_cycle_date or get_cycle_date_jst()
-    view = SoulsView(cycle_date=cycle_date, using_default_date=using_default_date)
+    view = SoulsView(selected_soul="Soul 1")
     embed = build_souls_embed(
         selected_soul=view.selected_soul,
         cycle_date=cycle_date,
