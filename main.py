@@ -30,7 +30,7 @@ SOUL_LISTS: dict[str, list[str]] = {
         "Blangonga",
         "Shogun Ceanataur",
         "Pink Rathian",
-        "Duragua",
+        "Duragaua",
         "Blue Yian Kut-Ku",
         "Basarios",
     ],
@@ -73,7 +73,7 @@ SOUL_LISTS: dict[str, list[str]] = {
         "Kirin",
         "Grenzebul",
         "Kushala Daora",
-        "Duragua",
+        "Duragaua",
         "Teostra",
         "Draguros",
     ],
@@ -161,7 +161,9 @@ def build_souls_embed(
         ),
         color=discord.Color.from_rgb(46, 204, 113),
     )
-    embed.add_field(name="Active Monsters", value=build_active_summary(cycle_date), inline=False)
+    embed.add_field(
+        name="Active Monsters", value=build_active_summary(cycle_date), inline=False
+    )
     embed.add_field(
         name=f"{selected_soul} Rotation",
         value=f"```text\n{build_soul_list_text(selected_soul, cycle_date)}\n```",
@@ -202,7 +204,9 @@ class SoulsView(discord.ui.View):
                     else discord.ButtonStyle.secondary
                 )
 
-    async def _switch_soul(self, interaction: discord.Interaction, soul_name: str) -> None:
+    async def _switch_soul(
+        self, interaction: discord.Interaction, soul_name: str
+    ) -> None:
         if interaction.message is None or not interaction.message.embeds:
             await interaction.response.send_message(
                 "I couldn't read this message context. Please run `/souls` again.",
@@ -296,7 +300,9 @@ async def on_ready() -> None:
     print(f"Logged in as {bot.user} (id={bot.user.id})")
 
 
-@bot.tree.command(name="souls", description="Show Soul 1-4 rotation and active monsters")
+@bot.tree.command(
+    name="souls", description="Show Soul 1-4 rotation and active monsters"
+)
 @app_commands.describe(query_date="Optional JST cycle date in YYYY-MM-DD format")
 async def souls_command(
     interaction: discord.Interaction, query_date: str | None = None
